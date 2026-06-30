@@ -1335,6 +1335,19 @@
 
     // ===== FIREBASE =====
     const FIREBASE_CONFIG_KEY = 'smashx_firebase_config';
+
+    // Default Firebase config for SmashX scoreboard
+    // ใส่ไว้ในไฟล์โดยตรง เพื่อให้ทุกเครื่อง/มือถือเชื่อม Database ได้ทันที
+    const DEFAULT_FIREBASE_CONFIG = {
+        apiKey: "AIzaSyD1XwX8a4KIUxJj7eVw_X8q246uqt5_nzE",
+        authDomain: "smashx-ef415.firebaseapp.com",
+        databaseURL: "https://smashx-ef415-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "smashx-ef415",
+        storageBucket: "smashx-ef415.firebasestorage.app",
+        messagingSenderId: "599790489808",
+        appId: "1:599790489808:web:e95e97b7b1273adeee4ed5"
+    };
+
     let db = null;
     let firebaseConnected = false;
     let isUpdatingFromFirebase = false; // Prevent save loops
@@ -1345,10 +1358,10 @@
             try {
                 return JSON.parse(saved);
             } catch(e) {
-                return null;
+                return DEFAULT_FIREBASE_CONFIG;
             }
         }
-        return null;
+        return DEFAULT_FIREBASE_CONFIG;
     }
 
     function initFirebase(config) {
