@@ -1,0 +1,1866 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smash X Tournament 2026 - Scoreboard</title>
+    <meta name="description" content="ระบบเก็บคะแนนการแข่งขันแบดมินตัน Smash X Tournament 2026 - ตารางคะแนน Group A & Group B">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Noto+Sans+Thai:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+
+    <style>
+        *, *::before, *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #0a0e1a;
+            --bg-secondary: #111827;
+            --bg-card: rgba(17, 24, 39, 0.7);
+            --bg-glass: rgba(255, 255, 255, 0.03);
+            --border-glass: rgba(255, 255, 255, 0.08);
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --accent-orange: #f97316;
+            --accent-orange-glow: rgba(249, 115, 22, 0.3);
+            --accent-blue: #3b82f6;
+            --accent-blue-glow: rgba(59, 130, 246, 0.3);
+            --accent-green: #22c55e;
+            --accent-red: #ef4444;
+            --accent-yellow: #eab308;
+            --accent-purple: #a855f7;
+            --gradient-orange: linear-gradient(135deg, #f97316, #fb923c);
+            --gradient-blue: linear-gradient(135deg, #3b82f6, #60a5fa);
+            --gradient-hero: linear-gradient(135deg, #f97316 0%, #ef4444 50%, #a855f7 100%);
+            --shadow-lg: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            --shadow-glow-orange: 0 0 40px rgba(249, 115, 22, 0.15);
+            --shadow-glow-blue: 0 0 40px rgba(59, 130, 246, 0.15);
+            --radius: 16px;
+            --radius-sm: 10px;
+            --radius-xs: 6px;
+        }
+
+        body {
+            font-family: 'Inter', 'Noto Sans Thai', -apple-system, sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Background Decorations */
+        body::before {
+            content: '';
+            position: fixed;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: 
+                radial-gradient(circle at 20% 20%, rgba(249, 115, 22, 0.06) 0%, transparent 50%),
+                radial-gradient(circle at 80% 80%, rgba(59, 130, 246, 0.06) 0%, transparent 50%),
+                radial-gradient(circle at 50% 50%, rgba(168, 85, 247, 0.04) 0%, transparent 50%);
+            z-index: 0;
+            animation: bgFloat 20s ease-in-out infinite;
+        }
+
+        @keyframes bgFloat {
+            0%, 100% { transform: translate(0, 0) rotate(0deg); }
+            33% { transform: translate(2%, 1%) rotate(1deg); }
+            66% { transform: translate(-1%, 2%) rotate(-1deg); }
+        }
+
+        .container {
+            position: relative;
+            z-index: 1;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        /* Hero Header */
+        .hero {
+            text-align: center;
+            padding: 40px 20px 30px;
+            position: relative;
+        }
+
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(249, 115, 22, 0.1);
+            border: 1px solid rgba(249, 115, 22, 0.2);
+            padding: 6px 16px;
+            border-radius: 50px;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--accent-orange);
+            margin-bottom: 16px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .hero h1 {
+            font-size: clamp(2rem, 5vw, 3.5rem);
+            font-weight: 900;
+            background: var(--gradient-hero);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            line-height: 1.2;
+            margin-bottom: 8px;
+        }
+
+        .hero-subtitle {
+            font-size: 16px;
+            color: var(--text-secondary);
+            font-weight: 400;
+        }
+
+        /* Connection Status Badge */
+        .status-bar {
+            display: flex;
+            justify-content: center;
+            margin-top: 12px;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 14px;
+            border-radius: 50px;
+            font-size: 12px;
+            font-weight: 600;
+            border: 1px solid;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .status-badge.online {
+            background: rgba(34, 197, 94, 0.1);
+            border-color: rgba(34, 197, 94, 0.3);
+            color: var(--accent-green);
+        }
+
+        .status-badge.offline {
+            background: rgba(234, 179, 8, 0.1);
+            border-color: rgba(234, 179, 8, 0.3);
+            color: var(--accent-yellow);
+        }
+
+        .status-badge.not-configured {
+            background: rgba(239, 68, 68, 0.1);
+            border-color: rgba(239, 68, 68, 0.3);
+            color: var(--accent-red);
+        }
+
+        .status-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: currentColor;
+        }
+
+        .status-badge.online .status-dot {
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        /* Shuttlecock floating animation */
+        .shuttlecock {
+            position: absolute;
+            font-size: 2rem;
+            opacity: 0.15;
+            animation: float 6s ease-in-out infinite;
+        }
+        .shuttlecock:nth-child(1) { top: 10%; left: 5%; animation-delay: 0s; }
+        .shuttlecock:nth-child(2) { top: 20%; right: 8%; animation-delay: 2s; }
+        .shuttlecock:nth-child(3) { bottom: 10%; left: 12%; animation-delay: 4s; }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0) rotate(0deg); }
+            50% { transform: translateY(-15px) rotate(10deg); }
+        }
+
+        /* Match Input Form */
+        .form-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border-glass);
+            border-radius: var(--radius);
+            padding: 28px;
+            margin-bottom: 28px;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .form-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .form-title span {
+            font-size: 20px;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 16px;
+        }
+
+        .group-selector {
+            display: flex;
+            gap: 8px;
+        }
+
+        .group-btn {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid var(--border-glass);
+            border-radius: var(--radius-sm);
+            background: transparent;
+            color: var(--text-secondary);
+            font-size: 14px;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+        }
+
+        .group-btn.active-a {
+            border-color: var(--accent-orange);
+            background: rgba(249, 115, 22, 0.1);
+            color: var(--accent-orange);
+            box-shadow: 0 0 20px rgba(249, 115, 22, 0.1);
+        }
+
+        .group-btn.active-b {
+            border-color: var(--accent-blue);
+            background: rgba(59, 130, 246, 0.1);
+            color: var(--accent-blue);
+            box-shadow: 0 0 20px rgba(59, 130, 246, 0.1);
+        }
+
+        .match-input-area {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .team-input-block {
+            flex: 1;
+            min-width: 200px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .team-input-block.right {
+            align-items: flex-end;
+        }
+        .team-input-block.right select,
+        .team-input-block.right input {
+            text-align: right;
+        }
+
+        .vs-badge {
+            font-size: 18px;
+            font-weight: 900;
+            color: var(--text-muted);
+            padding: 0 8px;
+            flex-shrink: 0;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        select, .score-input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid var(--border-glass);
+            border-radius: var(--radius-xs);
+            background: rgba(255, 255, 255, 0.04);
+            color: var(--text-primary);
+            font-size: 15px;
+            font-family: inherit;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            outline: none;
+            -webkit-appearance: none;
+            appearance: none;
+        }
+
+        select {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2394a3b8' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 14px center;
+            padding-right: 36px;
+        }
+
+        select option {
+            background: #1e293b;
+            color: var(--text-primary);
+        }
+
+        select:focus, .score-input:focus {
+            border-color: var(--accent-orange);
+            box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.1);
+        }
+
+        .score-input {
+            text-align: center;
+            font-size: 24px;
+            font-weight: 800;
+            letter-spacing: 2px;
+            max-width: 120px;
+        }
+
+        .score-input::placeholder {
+            color: var(--text-muted);
+            font-size: 14px;
+            font-weight: 400;
+        }
+
+        .btn-record {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: var(--radius-sm);
+            background: var(--gradient-hero);
+            color: white;
+            font-size: 16px;
+            font-weight: 700;
+            font-family: inherit;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            letter-spacing: 0.5px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-record::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: left 0.5s ease;
+        }
+
+        .btn-record:hover::before {
+            left: 100%;
+        }
+
+        .btn-record:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(249, 115, 22, 0.3);
+        }
+
+        .btn-record:active {
+            transform: translateY(0);
+        }
+
+        /* Action Buttons Row */
+        .action-buttons {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .btn-secondary {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid var(--border-glass);
+            border-radius: var(--radius-xs);
+            background: rgba(255, 255, 255, 0.03);
+            color: var(--text-secondary);
+            font-size: 13px;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.06);
+            color: var(--text-primary);
+        }
+
+        .btn-danger {
+            border-color: rgba(239, 68, 68, 0.3);
+            color: var(--accent-red);
+        }
+
+        .btn-danger:hover {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--accent-red);
+        }
+
+        /* Group Tables */
+        .tables-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(480px, 1fr));
+            gap: 24px;
+            margin-bottom: 28px;
+        }
+
+        .group-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border-glass);
+            border-radius: var(--radius);
+            overflow: hidden;
+            box-shadow: var(--shadow-lg);
+            transition: transform 0.3s ease;
+        }
+
+        .group-card:hover {
+            transform: translateY(-2px);
+        }
+
+        .group-card.group-a {
+            box-shadow: var(--shadow-lg), var(--shadow-glow-orange);
+        }
+
+        .group-card.group-b {
+            box-shadow: var(--shadow-lg), var(--shadow-glow-blue);
+        }
+
+        .group-header {
+            padding: 20px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .group-header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .group-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            font-weight: 800;
+            color: white;
+        }
+
+        .group-a .group-icon {
+            background: var(--gradient-orange);
+            box-shadow: 0 4px 15px rgba(249, 115, 22, 0.3);
+        }
+
+        .group-b .group-icon {
+            background: var(--gradient-blue);
+            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+        }
+
+        .group-label {
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .group-sublabel {
+            font-size: 12px;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .group-team-count {
+            font-size: 12px;
+            color: var(--text-muted);
+            background: var(--bg-glass);
+            padding: 4px 12px;
+            border-radius: 50px;
+            border: 1px solid var(--border-glass);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        thead th {
+            padding: 12px 14px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-muted);
+            background: rgba(255, 255, 255, 0.02);
+            border-bottom: 1px solid var(--border-glass);
+            text-align: center;
+        }
+
+        thead th:nth-child(2) {
+            text-align: left;
+        }
+
+        tbody td {
+            padding: 14px;
+            font-size: 14px;
+            font-weight: 500;
+            text-align: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+            transition: background 0.2s ease;
+        }
+
+        tbody td:nth-child(2) {
+            text-align: left;
+            font-weight: 600;
+        }
+
+        tbody tr {
+            transition: background 0.2s ease;
+        }
+
+        tbody tr:hover {
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .rank-cell {
+            font-weight: 800;
+            font-size: 16px;
+        }
+
+        .rank-1-row td {
+            position: relative;
+        }
+
+        .group-a .rank-1-row {
+            background: rgba(249, 115, 22, 0.08) !important;
+        }
+
+        .group-b .rank-1-row {
+            background: rgba(59, 130, 246, 0.08) !important;
+        }
+
+        .rank-medal {
+            font-size: 18px;
+        }
+
+        .stat-win {
+            color: var(--accent-green);
+            font-weight: 700;
+        }
+
+        .stat-loss {
+            color: var(--accent-red);
+            font-weight: 700;
+        }
+
+        .stat-diff-positive {
+            color: var(--accent-green);
+            font-weight: 700;
+        }
+
+        .stat-diff-negative {
+            color: var(--accent-red);
+            font-weight: 700;
+        }
+
+        .stat-diff-zero {
+            color: var(--text-muted);
+        }
+
+        .finalist-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: rgba(234, 179, 8, 0.15);
+            color: var(--accent-yellow);
+            font-size: 10px;
+            font-weight: 700;
+            padding: 3px 8px;
+            border-radius: 50px;
+            border: 1px solid rgba(234, 179, 8, 0.3);
+            margin-left: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* History Section */
+        .history-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border-glass);
+            border-radius: var(--radius);
+            overflow: hidden;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .history-header {
+            padding: 20px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--border-glass);
+        }
+
+        .history-header-left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .history-count {
+            font-size: 12px;
+            color: var(--text-muted);
+            background: var(--bg-glass);
+            padding: 4px 12px;
+            border-radius: 50px;
+            border: 1px solid var(--border-glass);
+        }
+
+        .history-list {
+            list-style: none;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .history-list::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .history-list::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .history-list::-webkit-scrollbar-thumb {
+            background: var(--border-glass);
+            border-radius: 2px;
+        }
+
+        .history-item {
+            padding: 14px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+            transition: background 0.2s ease;
+            animation: slideIn 0.3s ease;
+        }
+
+        .history-item:hover {
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .history-match {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex: 1;
+        }
+
+        .history-group-tag {
+            font-size: 10px;
+            font-weight: 700;
+            padding: 3px 10px;
+            border-radius: 50px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            flex-shrink: 0;
+        }
+
+        .tag-a {
+            background: rgba(249, 115, 22, 0.15);
+            color: var(--accent-orange);
+            border: 1px solid rgba(249, 115, 22, 0.3);
+        }
+
+        .tag-b {
+            background: rgba(59, 130, 246, 0.15);
+            color: var(--accent-blue);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+        }
+
+        .history-teams {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .history-score {
+            font-weight: 800;
+            padding: 0 4px;
+        }
+
+        .history-winner {
+            color: var(--accent-green);
+        }
+
+        .history-loser {
+            color: var(--text-muted);
+        }
+
+        .history-delete-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 16px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            transition: all 0.2s ease;
+            opacity: 0;
+        }
+
+        .history-item:hover .history-delete-btn {
+            opacity: 1;
+        }
+
+        .history-delete-btn:hover {
+            color: var(--accent-red);
+            background: rgba(239, 68, 68, 0.1);
+        }
+
+        .empty-state {
+            padding: 40px;
+            text-align: center;
+            color: var(--text-muted);
+        }
+
+        .empty-state-icon {
+            font-size: 40px;
+            margin-bottom: 12px;
+            opacity: 0.5;
+        }
+
+        .empty-state-text {
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        /* Toast Notification */
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: #1e293b;
+            border: 1px solid var(--border-glass);
+            color: var(--text-primary);
+            padding: 14px 24px;
+            border-radius: var(--radius-sm);
+            font-size: 14px;
+            font-weight: 600;
+            font-family: inherit;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+            z-index: 1000;
+            transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            max-width: 90vw;
+        }
+
+        .toast.show {
+            transform: translateX(-50%) translateY(0);
+        }
+
+        .toast-success {
+            border-left: 3px solid var(--accent-green);
+        }
+
+        .toast-error {
+            border-left: 3px solid var(--accent-red);
+        }
+
+        /* Confirm Dialog */
+        .overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(4px);
+            z-index: 999;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            animation: fadeIn 0.2s ease;
+        }
+
+        .overlay.show {
+            display: flex;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .dialog {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-glass);
+            border-radius: var(--radius);
+            padding: 28px;
+            max-width: 520px;
+            width: 90%;
+            box-shadow: var(--shadow-lg);
+            animation: dialogIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            max-height: 85vh;
+            overflow-y: auto;
+        }
+
+        @keyframes dialogIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        .dialog h3 {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .dialog p {
+            color: var(--text-secondary);
+            font-size: 14px;
+            margin-bottom: 20px;
+            line-height: 1.6;
+        }
+
+        .dialog-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        .dialog-btn {
+            padding: 10px 20px;
+            border-radius: var(--radius-xs);
+            font-size: 14px;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            border: 1px solid var(--border-glass);
+            transition: all 0.2s ease;
+        }
+
+        .dialog-btn-cancel {
+            background: transparent;
+            color: var(--text-secondary);
+        }
+
+        .dialog-btn-cancel:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .dialog-btn-confirm {
+            background: var(--accent-red);
+            color: white;
+            border-color: var(--accent-red);
+        }
+
+        .dialog-btn-confirm:hover {
+            background: #dc2626;
+        }
+
+        /* Setup Guide Dialog */
+        .setup-dialog {
+            max-width: 600px;
+        }
+
+        .setup-dialog h3 {
+            margin-bottom: 16px;
+        }
+
+        .setup-steps {
+            list-style: none;
+            margin-bottom: 20px;
+        }
+
+        .setup-steps li {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 16px;
+            padding: 14px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: var(--radius-xs);
+            border: 1px solid var(--border-glass);
+        }
+
+        .step-num {
+            flex-shrink: 0;
+            width: 28px;
+            height: 28px;
+            background: var(--gradient-hero);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+            font-weight: 800;
+        }
+
+        .step-content {
+            flex: 1;
+            font-size: 13px;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        .step-content strong {
+            color: var(--text-primary);
+        }
+
+        .step-content a {
+            color: var(--accent-orange);
+            text-decoration: none;
+        }
+
+        .step-content a:hover {
+            text-decoration: underline;
+        }
+
+        .step-content code {
+            background: rgba(249, 115, 22, 0.1);
+            color: var(--accent-orange);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-family: 'Fira Code', monospace;
+        }
+
+        .config-input-group {
+            margin-bottom: 12px;
+        }
+
+        .config-input-group label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-muted);
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .config-input-group input {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1px solid var(--border-glass);
+            border-radius: var(--radius-xs);
+            background: rgba(255, 255, 255, 0.04);
+            color: var(--text-primary);
+            font-size: 14px;
+            font-family: 'Fira Code', monospace;
+            outline: none;
+            transition: border-color 0.2s ease;
+        }
+
+        .config-input-group input:focus {
+            border-color: var(--accent-orange);
+        }
+
+        .config-input-group input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .btn-save-config {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: var(--radius-sm);
+            background: var(--gradient-hero);
+            color: white;
+            font-size: 15px;
+            font-weight: 700;
+            font-family: inherit;
+            cursor: pointer;
+            margin-top: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .btn-save-config:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(249, 115, 22, 0.3);
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            padding: 30px 20px;
+            color: var(--text-muted);
+            font-size: 13px;
+        }
+
+        .footer a {
+            color: var(--accent-orange);
+            text-decoration: none;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .container {
+                padding: 12px;
+            }
+
+            .hero {
+                padding: 24px 12px 20px;
+            }
+
+            .tables-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .match-input-area {
+                flex-direction: column;
+            }
+
+            .team-input-block {
+                width: 100%;
+            }
+
+            .team-input-block.right {
+                align-items: flex-start;
+            }
+
+            .team-input-block.right select,
+            .team-input-block.right input {
+                text-align: left;
+            }
+
+            .vs-badge {
+                padding: 4px 0;
+            }
+
+            .score-input {
+                max-width: 100%;
+            }
+
+            thead th, tbody td {
+                padding: 10px 8px;
+                font-size: 12px;
+            }
+
+            .history-item {
+                padding: 12px 16px;
+                flex-wrap: wrap;
+                gap: 8px;
+            }
+
+            .history-delete-btn {
+                opacity: 1;
+            }
+        }
+
+        @media (max-width: 520px) {
+            .tables-grid {
+                grid-template-columns: 1fr;
+                gap: 16px;
+            }
+
+            .group-header {
+                padding: 14px 16px;
+            }
+
+            .hero h1 {
+                font-size: 1.8rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <!-- Hero -->
+    <header class="hero">
+        <div class="shuttlecock">🏸</div>
+        <div class="shuttlecock">🏸</div>
+        <div class="shuttlecock">🏸</div>
+        <div class="hero-badge">🏆 Tournament 2026</div>
+        <h1>Smash X</h1>
+        <p class="hero-subtitle">ระบบเก็บคะแนนการแข่งขันแบดมินตัน — รอบแบ่งกลุ่ม</p>
+        <div class="status-bar">
+            <div class="status-badge not-configured" id="statusBadge" onclick="showSetupGuide()">
+                <div class="status-dot"></div>
+                <span id="statusText">ยังไม่ได้ตั้งค่า Firebase</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Match Input Form -->
+    <section class="form-card" id="formSection">
+        <div class="form-title">
+            <span>📝</span> บันทึกผลการแข่งขัน
+        </div>
+        <div class="form-grid">
+            <div class="group-selector">
+                <button class="group-btn active-a" id="btnGroupA" onclick="selectGroup('A')">🔶 Group A</button>
+                <button class="group-btn" id="btnGroupB" onclick="selectGroup('B')">🔷 Group B</button>
+            </div>
+
+            <div class="match-input-area">
+                <div class="team-input-block">
+                    <select id="team1Select"></select>
+                    <input type="number" class="score-input" id="score1" placeholder="คะแนน" min="0">
+                </div>
+
+                <div class="vs-badge">VS</div>
+
+                <div class="team-input-block right">
+                    <select id="team2Select"></select>
+                    <input type="number" class="score-input" id="score2" placeholder="คะแนน" min="0">
+                </div>
+            </div>
+
+            <button class="btn-record" id="btnRecord" onclick="recordMatch()">
+                ⚡ บันทึกผลการแข่งขัน
+            </button>
+
+            <div class="action-buttons">
+                <button class="btn-secondary" onclick="undoLastMatch()">↩️ ย้อนกลับรายการล่าสุด</button>
+                <button class="btn-secondary btn-danger" onclick="confirmResetAll()">🗑️ ล้างข้อมูลทั้งหมด</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Score Tables -->
+    <div class="tables-grid">
+        <!-- Group A -->
+        <div class="group-card group-a">
+            <div class="group-header">
+                <div class="group-header-left">
+                    <div class="group-icon">A</div>
+                    <div>
+                        <div class="group-label">Group A</div>
+                        <div class="group-sublabel">ตารางคะแนน</div>
+                    </div>
+                </div>
+                <div class="group-team-count" id="teamCountA">6 ทีม</div>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>ทีม</th>
+                        <th>แข่ง</th>
+                        <th>ชนะ</th>
+                        <th>แพ้</th>
+                        <th>ได้</th>
+                        <th>เสีย</th>
+                        <th>+/-</th>
+                    </tr>
+                </thead>
+                <tbody id="tableGroupA"></tbody>
+            </table>
+        </div>
+
+        <!-- Group B -->
+        <div class="group-card group-b">
+            <div class="group-header">
+                <div class="group-header-left">
+                    <div class="group-icon">B</div>
+                    <div>
+                        <div class="group-label">Group B</div>
+                        <div class="group-sublabel">ตารางคะแนน</div>
+                    </div>
+                </div>
+                <div class="group-team-count" id="teamCountB">6 ทีม</div>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>ทีม</th>
+                        <th>แข่ง</th>
+                        <th>ชนะ</th>
+                        <th>แพ้</th>
+                        <th>ได้</th>
+                        <th>เสีย</th>
+                        <th>+/-</th>
+                    </tr>
+                </thead>
+                <tbody id="tableGroupB"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Match History -->
+    <section class="history-card">
+        <div class="history-header">
+            <div class="history-header-left">
+                <span>📜</span> ประวัติการแข่งขัน
+            </div>
+            <div class="history-count" id="matchCount">0 แมตช์</div>
+        </div>
+        <ul class="history-list" id="historyList">
+            <li class="empty-state" id="emptyHistory">
+                <div class="empty-state-icon">🏸</div>
+                <div class="empty-state-text">ยังไม่มีผลการแข่งขัน</div>
+            </li>
+        </ul>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        Smash X Tournament 2026 &copy; — Made with ❤️ for badminton lovers
+    </footer>
+</div>
+
+<!-- Confirm Dialog -->
+<div class="overlay" id="confirmDialog">
+    <div class="dialog">
+        <h3>⚠️ ล้างข้อมูลทั้งหมด?</h3>
+        <p>คุณต้องการล้างผลการแข่งขันและตารางคะแนนทั้งหมดหรือไม่? การกระทำนี้ไม่สามารถย้อนกลับได้</p>
+        <div class="dialog-buttons">
+            <button class="dialog-btn dialog-btn-cancel" onclick="closeDialog()">ยกเลิก</button>
+            <button class="dialog-btn dialog-btn-confirm" onclick="resetAll()">ล้างข้อมูล</button>
+        </div>
+    </div>
+</div>
+
+<!-- Setup Guide Dialog -->
+<div class="overlay" id="setupDialog">
+    <div class="dialog setup-dialog">
+        <h3>🔧 ตั้งค่า Firebase — ซิงค์ข้ามอุปกรณ์</h3>
+        <p>ตั้งค่า Firebase เพื่อให้ข้อมูลแสดงเหมือนกันทุกเครื่อง (คอม, มือถือ, แท็บเล็ต) แบบ real-time ฟรี!</p>
+
+        <ol class="setup-steps">
+            <li>
+                <div class="step-num">1</div>
+                <div class="step-content">
+                    เข้าไปที่ <a href="https://console.firebase.google.com/" target="_blank">console.firebase.google.com</a> แล้ว<strong>สร้าง Project ใหม่</strong> (ตั้งชื่ออะไรก็ได้ เช่น smash-x)
+                </div>
+            </li>
+            <li>
+                <div class="step-num">2</div>
+                <div class="step-content">
+                    ในเมนูซ้าย คลิก <strong>Build → Realtime Database</strong> แล้วกด <strong>"Create Database"</strong><br>
+                    เลือก location: <code>Singapore</code> แล้วเลือก <strong>"Start in test mode"</strong>
+                </div>
+            </li>
+            <li>
+                <div class="step-num">3</div>
+                <div class="step-content">
+                    กลับไปหน้า <strong>Project Overview</strong> (มุมบนซ้าย) → คลิกไอคอน <strong>&lt;/&gt;</strong> (Web) เพื่อเพิ่ม Web App<br>
+                    ตั้งชื่อ App แล้วกด <strong>Register app</strong> → จะเห็น <strong>firebaseConfig</strong>
+                </div>
+            </li>
+            <li>
+                <div class="step-num">4</div>
+                <div class="step-content">
+                    คัดลอกค่าจาก <strong>firebaseConfig</strong> มาวางในช่องด้านล่าง แล้วกด <strong>บันทึก</strong>
+                </div>
+            </li>
+        </ol>
+
+        <div class="config-input-group">
+            <label>API Key</label>
+            <input type="text" id="cfgApiKey" placeholder="AIzaSy...">
+        </div>
+        <div class="config-input-group">
+            <label>Auth Domain</label>
+            <input type="text" id="cfgAuthDomain" placeholder="your-project.firebaseapp.com">
+        </div>
+        <div class="config-input-group">
+            <label>Database URL</label>
+            <input type="text" id="cfgDatabaseURL" placeholder="https://your-project-default-rtdb.firebaseio.com">
+        </div>
+        <div class="config-input-group">
+            <label>Project ID</label>
+            <input type="text" id="cfgProjectId" placeholder="your-project-id">
+        </div>
+        <div class="config-input-group">
+            <label>Storage Bucket</label>
+            <input type="text" id="cfgStorageBucket" placeholder="your-project.appspot.com">
+        </div>
+        <div class="config-input-group">
+            <label>Messaging Sender ID</label>
+            <input type="text" id="cfgMessagingSenderId" placeholder="123456789">
+        </div>
+        <div class="config-input-group">
+            <label>App ID</label>
+            <input type="text" id="cfgAppId" placeholder="1:123456789:web:abc123">
+        </div>
+
+        <button class="btn-save-config" onclick="saveFirebaseConfig()">🚀 บันทึกและเชื่อมต่อ Firebase</button>
+
+        <div style="margin-top: 12px;">
+            <button class="dialog-btn dialog-btn-cancel" onclick="closeSetupDialog()" style="width: 100%; text-align: center;">ปิด</button>
+        </div>
+    </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+    // ===== DATA =====
+    const teamsData = {
+        A: ['ปั้น-นัน', 'พี่แบงค์-พี่อาม', 'เบนซ์-ตอง', 'นัท-เต้ย', 'ปอนด์-อิง', 'คิง-เคนนี่'],
+        B: ['บี๋-พี่ต่อ', 'มอส-คิมมี่', 'อาม-พลอย', 'ซ่า-โบ้ท', 'เบส-น้องนน', 'พี-มาร์ค']
+    };
+
+    let currentGroup = 'A';
+    let stats = {};
+    let matchHistory = [];
+
+    // ===== FIREBASE =====
+    const FIREBASE_CONFIG_KEY = 'smashx_firebase_config';
+
+    // Default Firebase config for SmashX scoreboard
+    // ใส่ไว้ในไฟล์โดยตรง เพื่อให้ทุกเครื่อง/มือถือเชื่อม Database ได้ทันที
+    const DEFAULT_FIREBASE_CONFIG = {
+        apiKey: "AIzaSyD1XwX8a4KIUxJj7eVw_X8q246uqt5_nzE",
+        authDomain: "smashx-ef415.firebaseapp.com",
+        databaseURL: "https://smashx-ef415-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "smashx-ef415",
+        storageBucket: "smashx-ef415.firebasestorage.app",
+        messagingSenderId: "599790489808",
+        appId: "1:599790489808:web:e95e97b7b1273adeee4ed5"
+    };
+
+    let db = null;
+    let firebaseConnected = false;
+    let isUpdatingFromFirebase = false; // Prevent save loops
+
+    function loadFirebaseConfig() {
+        const saved = localStorage.getItem(FIREBASE_CONFIG_KEY);
+        if (saved) {
+            try {
+                return JSON.parse(saved);
+            } catch(e) {
+                return DEFAULT_FIREBASE_CONFIG;
+            }
+        }
+        return DEFAULT_FIREBASE_CONFIG;
+    }
+
+    function initFirebase(config) {
+        try {
+            // Check if firebase is already initialized
+            if (firebase.apps.length > 0) {
+                db = firebase.database();
+            } else {
+                firebase.initializeApp(config);
+                db = firebase.database();
+            }
+
+            // Listen for each match as a separate record.
+            // This prevents multiple devices from overwriting each other.
+            db.ref('matches').on('value', (snapshot) => {
+                isUpdatingFromFirebase = true;
+                const data = snapshot.val();
+
+                matchHistory = data
+                    ? Object.entries(data).map(([key, value]) => ({ firebaseKey: key, ...value })).reverse()
+                    : [];
+
+                migrateData(stats, matchHistory);
+                rebuildStatsFromMatches();
+
+                // Save to localStorage as offline cache
+                localStorage.setItem(STORAGE_KEY, JSON.stringify({ stats, matchHistory }));
+
+                updateTables();
+                renderHistory();
+                isUpdatingFromFirebase = false;
+            });
+
+            // One-time migration from the old structure: tournament.matchHistory -> matches
+            // This keeps old saved results if the previous version already had data.
+            db.ref('tournament/matchHistory').once('value').then((snapshot) => {
+                const oldHistory = snapshot.val();
+                if (oldHistory && Array.isArray(oldHistory)) {
+                    db.ref('matches').once('value').then((matchesSnapshot) => {
+                        if (!matchesSnapshot.exists()) {
+                            const updates = {};
+                            oldHistory.forEach(match => {
+                                const key = db.ref('matches').push().key;
+                                updates[key] = match;
+                            });
+                            if (Object.keys(updates).length > 0) {
+                                db.ref('matches').update(updates);
+                            }
+                        }
+                    });
+                }
+            }).catch((e) => console.warn('Old data migration skipped:', e));
+
+            // Connection status
+            db.ref('.info/connected').on('value', (snap) => {
+                firebaseConnected = snap.val() === true;
+                updateStatusBadge();
+            });
+
+            updateStatusBadge();
+            return true;
+        } catch (e) {
+            console.error('Firebase init error:', e);
+            return false;
+        }
+    }
+
+    function updateStatusBadge() {
+        const badge = document.getElementById('statusBadge');
+        const text = document.getElementById('statusText');
+
+        if (!db) {
+            badge.className = 'status-badge not-configured';
+            text.textContent = 'กดเพื่อตั้งค่า Firebase';
+        } else if (firebaseConnected) {
+            badge.className = 'status-badge online';
+            text.textContent = 'ออนไลน์ — ซิงค์ real-time';
+        } else {
+            badge.className = 'status-badge offline';
+            text.textContent = 'ออฟไลน์ — กำลังเชื่อมต่อ...';
+        }
+    }
+
+    function showSetupGuide() {
+        // Pre-fill with saved config
+        const config = loadFirebaseConfig();
+        if (config) {
+            document.getElementById('cfgApiKey').value = config.apiKey || '';
+            document.getElementById('cfgAuthDomain').value = config.authDomain || '';
+            document.getElementById('cfgDatabaseURL').value = config.databaseURL || '';
+            document.getElementById('cfgProjectId').value = config.projectId || '';
+            document.getElementById('cfgStorageBucket').value = config.storageBucket || '';
+            document.getElementById('cfgMessagingSenderId').value = config.messagingSenderId || '';
+            document.getElementById('cfgAppId').value = config.appId || '';
+        }
+        document.getElementById('setupDialog').classList.add('show');
+    }
+
+    function closeSetupDialog() {
+        document.getElementById('setupDialog').classList.remove('show');
+    }
+
+    function saveFirebaseConfig() {
+        const config = {
+            apiKey: document.getElementById('cfgApiKey').value.trim(),
+            authDomain: document.getElementById('cfgAuthDomain').value.trim(),
+            databaseURL: document.getElementById('cfgDatabaseURL').value.trim(),
+            projectId: document.getElementById('cfgProjectId').value.trim(),
+            storageBucket: document.getElementById('cfgStorageBucket').value.trim(),
+            messagingSenderId: document.getElementById('cfgMessagingSenderId').value.trim(),
+            appId: document.getElementById('cfgAppId').value.trim()
+        };
+
+        if (!config.apiKey || !config.databaseURL || !config.projectId) {
+            showToast('⚠️ กรุณากรอก API Key, Database URL และ Project ID', 'error');
+            return;
+        }
+
+        // Save config to localStorage (so it persists on this device)
+        localStorage.setItem(FIREBASE_CONFIG_KEY, JSON.stringify(config));
+
+        if (initFirebase(config)) {
+            // Push local history to Firebase only if Firebase has no matches yet
+            syncLocalMatchesToFirebaseIfEmpty();
+            closeSetupDialog();
+            showToast('✅ เชื่อมต่อ Firebase สำเร็จ! ข้อมูลจะซิงค์ข้ามอุปกรณ์แล้ว', 'success');
+        } else {
+            showToast('❌ เชื่อมต่อ Firebase ไม่ได้ กรุณาตรวจสอบค่าที่กรอก', 'error');
+        }
+    }
+
+    // ===== PERSISTENCE (localStorage + Firebase) =====
+    const STORAGE_KEY = 'smashx_tournament_2026';
+
+    // Migration: rename old team names
+    const TEAM_RENAMES = {
+        'บี้-พี่ต่อ': 'บี๋-พี่ต่อ'
+    };
+
+    function migrateData(loadedStats, loadedHistory) {
+        Object.entries(TEAM_RENAMES).forEach(([oldName, newName]) => {
+            if (loadedStats[oldName]) {
+                loadedStats[newName] = { ...loadedStats[oldName], name: newName };
+                delete loadedStats[oldName];
+            }
+        });
+        loadedHistory.forEach(match => {
+            if (TEAM_RENAMES[match.team1]) match.team1 = TEAM_RENAMES[match.team1];
+            if (TEAM_RENAMES[match.team2]) match.team2 = TEAM_RENAMES[match.team2];
+        });
+        const validTeams = new Set([...teamsData.A, ...teamsData.B]);
+        Object.keys(loadedStats).forEach(key => {
+            if (!validTeams.has(key)) delete loadedStats[key];
+        });
+    }
+
+    function ensureAllTeams() {
+        ['A', 'B'].forEach(group => {
+            teamsData[group].forEach(team => {
+                if (!stats[team]) {
+                    stats[team] = { group, name: team, played: 0, win: 0, loss: 0, pointsFor: 0, pointsAgainst: 0 };
+                }
+            });
+        });
+    }
+
+    function rebuildStatsFromMatches() {
+        initStats();
+
+        matchHistory.forEach(match => {
+            const { team1, team2, score1, score2 } = match;
+
+            if (!stats[team1] || !stats[team2]) return;
+
+            stats[team1].played += 1;
+            stats[team1].pointsFor += score1;
+            stats[team1].pointsAgainst += score2;
+            if (score1 > score2) stats[team1].win += 1;
+            else if (score1 < score2) stats[team1].loss += 1;
+
+            stats[team2].played += 1;
+            stats[team2].pointsFor += score2;
+            stats[team2].pointsAgainst += score1;
+            if (score2 > score1) stats[team2].win += 1;
+            else if (score2 < score1) stats[team2].loss += 1;
+        });
+    }
+
+    function saveLocalCache() {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ stats, matchHistory }));
+    }
+
+    function saveMatchToFirebase(match) {
+        if (db) {
+            db.ref('matches').push(match);
+        } else {
+            match.firebaseKey = 'local_' + match.id;
+            matchHistory.unshift(match);
+            rebuildStatsFromMatches();
+            saveLocalCache();
+            updateTables();
+            renderHistory();
+        }
+    }
+
+    function syncLocalMatchesToFirebaseIfEmpty() {
+        if (!db || matchHistory.length === 0) return;
+
+        db.ref('matches').once('value').then((snapshot) => {
+            if (snapshot.exists()) return;
+
+            const updates = {};
+            matchHistory.slice().reverse().forEach(match => {
+                const cleanMatch = { ...match };
+                delete cleanMatch.firebaseKey;
+                const key = db.ref('matches').push().key;
+                updates[key] = cleanMatch;
+            });
+
+            if (Object.keys(updates).length > 0) {
+                db.ref('matches').update(updates);
+            }
+        }).catch((e) => console.warn('Local sync skipped:', e));
+    }
+
+    function loadDataFromLocal() {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+            try {
+                const data = JSON.parse(saved);
+                matchHistory = data.matchHistory || [];
+                migrateData(stats, matchHistory);
+                rebuildStatsFromMatches();
+                saveLocalCache();
+                return true;
+            } catch (e) {
+                console.error('Error loading saved data:', e);
+                return false;
+            }
+        }
+        return false;
+    }
+
+    // ===== INIT =====
+    function initStats() {
+        stats = {};
+        ['A', 'B'].forEach(group => {
+            teamsData[group].forEach(team => {
+                stats[team] = { group, name: team, played: 0, win: 0, loss: 0, pointsFor: 0, pointsAgainst: 0 };
+            });
+        });
+    }
+
+    // ===== GROUP SELECTOR =====
+    function selectGroup(group) {
+        currentGroup = group;
+        const btnA = document.getElementById('btnGroupA');
+        const btnB = document.getElementById('btnGroupB');
+        
+        btnA.className = 'group-btn' + (group === 'A' ? ' active-a' : '');
+        btnB.className = 'group-btn' + (group === 'B' ? ' active-b' : '');
+        
+        updateTeamDropdowns();
+    }
+
+    // ===== TEAM DROPDOWNS =====
+    function updateTeamDropdowns() {
+        const teams = teamsData[currentGroup];
+        let options = teams.map(t => `<option value="${t}">${t}</option>`).join('');
+        document.getElementById('team1Select').innerHTML = options;
+        document.getElementById('team2Select').innerHTML = options;
+        document.getElementById('team2Select').selectedIndex = 1;
+    }
+
+    // ===== TABLE RENDERING =====
+    function updateTables() {
+        ['A', 'B'].forEach(group => {
+            let groupTeams = Object.values(stats).filter(t => t.group === group);
+
+            groupTeams.sort((a, b) => {
+                if (b.win !== a.win) return b.win - a.win;
+                let diffA = a.pointsFor - a.pointsAgainst;
+                let diffB = b.pointsFor - b.pointsAgainst;
+                if (diffB !== diffA) return diffB - diffA;
+                return b.pointsFor - a.pointsFor;
+            });
+
+            let tbodyHtml = '';
+            groupTeams.forEach((team, index) => {
+                const diff = team.pointsFor - team.pointsAgainst;
+                const isFirst = index === 0 && team.played > 0;
+                const rowClass = isFirst ? 'rank-1-row' : '';
+                
+                let rankDisplay;
+                if (index === 0) rankDisplay = '<span class="rank-medal">🥇</span>';
+                else if (index === 1) rankDisplay = '<span class="rank-medal">🥈</span>';
+                else if (index === 2) rankDisplay = '<span class="rank-medal">🥉</span>';
+                else rankDisplay = index + 1;
+
+                let diffClass = diff > 0 ? 'stat-diff-positive' : (diff < 0 ? 'stat-diff-negative' : 'stat-diff-zero');
+                let diffText = diff > 0 ? '+' + diff : diff;
+
+                let finalistBadge = isFirst ? '<span class="finalist-badge">🔥 FINALIST</span>' : '';
+
+                tbodyHtml += `<tr class="${rowClass}">
+                    <td class="rank-cell">${rankDisplay}</td>
+                    <td>${team.name}${finalistBadge}</td>
+                    <td>${team.played}</td>
+                    <td class="stat-win">${team.win}</td>
+                    <td class="stat-loss">${team.loss}</td>
+                    <td>${team.pointsFor}</td>
+                    <td>${team.pointsAgainst}</td>
+                    <td class="${diffClass}">${diffText}</td>
+                </tr>`;
+            });
+            document.getElementById('tableGroup' + group).innerHTML = tbodyHtml;
+        });
+    }
+
+    // ===== RECORD MATCH =====
+    function recordMatch() {
+        const team1 = document.getElementById('team1Select').value;
+        const team2 = document.getElementById('team2Select').value;
+        const score1 = parseInt(document.getElementById('score1').value);
+        const score2 = parseInt(document.getElementById('score2').value);
+
+        if (team1 === team2) {
+            showToast('⚠️ กรุณาเลือกทีมที่แข่งขันให้ต่างกัน', 'error');
+            return;
+        }
+        if (isNaN(score1) || isNaN(score2)) {
+            showToast('⚠️ กรุณากรอกคะแนนให้ครบทั้งสองทีม', 'error');
+            return;
+        }
+        if (score1 < 0 || score2 < 0) {
+            showToast('⚠️ คะแนนต้องไม่ติดลบ', 'error');
+            return;
+        }
+
+        const match = {
+            id: Date.now(),
+            group: currentGroup,
+            team1,
+            team2,
+            score1,
+            score2,
+            timestamp: new Date().toLocaleString('th-TH')
+        };
+
+        document.getElementById('score1').value = '';
+        document.getElementById('score2').value = '';
+
+        // Save as a new match record instead of overwriting the whole tournament data.
+        saveMatchToFirebase(match);
+
+        const winner = score1 > score2 ? team1 : (score2 > score1 ? team2 : 'เสมอ');
+        const resultText = score1 === score2 
+            ? `เสมอ! ${team1} ${score1} - ${score2} ${team2}` 
+            : `${winner} ชนะ! (${score1} - ${score2})`;
+        showToast(`✅ ${resultText}`, 'success');
+    }
+
+    // ===== RENDER HISTORY =====
+    function renderHistory() {
+        const historyList = document.getElementById('historyList');
+        const countEl = document.getElementById('matchCount');
+        
+        countEl.textContent = matchHistory.length + ' แมตช์';
+
+        if (matchHistory.length === 0) {
+            historyList.innerHTML = `
+                <li class="empty-state" id="emptyHistory">
+                    <div class="empty-state-icon">🏸</div>
+                    <div class="empty-state-text">ยังไม่มีผลการแข่งขัน</div>
+                </li>`;
+            return;
+        }
+
+        let html = '';
+        matchHistory.forEach((match, index) => {
+            const tagClass = match.group === 'A' ? 'tag-a' : 'tag-b';
+            const t1Won = match.score1 > match.score2;
+            const t2Won = match.score2 > match.score1;
+            const t1Class = t1Won ? 'history-winner' : (t2Won ? 'history-loser' : '');
+            const t2Class = t2Won ? 'history-winner' : (t1Won ? 'history-loser' : '');
+
+            html += `
+                <li class="history-item">
+                    <div class="history-match">
+                        <span class="history-group-tag ${tagClass}">Group ${match.group}</span>
+                        <span class="history-teams">
+                            <span class="${t1Class}">${match.team1}</span>
+                            <span class="history-score">${match.score1} - ${match.score2}</span>
+                            <span class="${t2Class}">${match.team2}</span>
+                        </span>
+                    </div>
+                    <button class="history-delete-btn" onclick="deleteMatch(${index})" title="ลบรายการนี้">✕</button>
+                </li>`;
+        });
+        historyList.innerHTML = html;
+    }
+
+    // ===== DELETE MATCH =====
+    function deleteMatch(index) {
+        const match = matchHistory[index];
+        if (!match) return;
+
+        if (db && match.firebaseKey && !match.firebaseKey.startsWith('local_')) {
+            db.ref('matches/' + match.firebaseKey).remove();
+        } else {
+            matchHistory.splice(index, 1);
+            rebuildStatsFromMatches();
+            saveLocalCache();
+            updateTables();
+            renderHistory();
+        }
+
+        showToast('🗑️ ลบรายการแข่งขันแล้ว', 'success');
+    }
+
+    // ===== UNDO LAST =====
+    function undoLastMatch() {
+        if (matchHistory.length === 0) {
+            showToast('⚠️ ไม่มีรายการให้ย้อนกลับ', 'error');
+            return;
+        }
+        deleteMatch(0);
+    }
+
+    // ===== RESET ALL =====
+    function confirmResetAll() {
+        document.getElementById('confirmDialog').classList.add('show');
+    }
+
+    function closeDialog() {
+        document.getElementById('confirmDialog').classList.remove('show');
+    }
+
+    function resetAll() {
+        initStats();
+        matchHistory = [];
+        saveLocalCache();
+
+        if (db) {
+            db.ref('matches').remove();
+            // Remove old full-object data too, so old version will not restore it later.
+            db.ref('tournament').remove().catch(() => {});
+        }
+
+        updateTables();
+        renderHistory();
+        closeDialog();
+        showToast('🗑️ ล้างข้อมูลทั้งหมดแล้ว', 'success');
+    }
+
+    // ===== TOAST =====
+    function showToast(message, type = 'success') {
+        const toast = document.getElementById('toast');
+        toast.textContent = message;
+        toast.className = 'toast toast-' + type + ' show';
+        
+        clearTimeout(toast._timeout);
+        toast._timeout = setTimeout(() => {
+            toast.classList.remove('show');
+        }, 3000);
+    }
+
+    // ===== BOOTSTRAP =====
+    // 1. Load from localStorage first (instant)
+    if (!loadDataFromLocal()) {
+        initStats();
+    }
+    updateTeamDropdowns();
+    updateTables();
+    renderHistory();
+
+    // 2. Try to connect Firebase (async, will override localStorage data via real-time listener)
+    const savedFirebaseConfig = loadFirebaseConfig();
+    if (savedFirebaseConfig) {
+        initFirebase(savedFirebaseConfig);
+    }
+    updateStatusBadge();
+
+    // Close dialogs on overlay click
+    document.getElementById('confirmDialog').addEventListener('click', function(e) {
+        if (e.target === this) closeDialog();
+    });
+    document.getElementById('setupDialog').addEventListener('click', function(e) {
+        if (e.target === this) closeSetupDialog();
+    });
+
+    // Keyboard shortcut
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closeDialog();
+            closeSetupDialog();
+        }
+    });
+</script>
+
+</body>
+</html>
