@@ -1368,34 +1368,52 @@
         try {
             // Check if firebase is already initialized
             if (firebase.apps.length > 0) {
-                // Already initialized, just get db
                 db = firebase.database();
             } else {
                 firebase.initializeApp(config);
                 db = firebase.database();
             }
 
-            // Listen for real-time updates
-            db.ref('tournament').on('value', (snapshot) => {
+            // Listen for each match as a separate record.
+            // This prevents multiple devices from overwriting each other.
+            db.ref('matches').on('value', (snapshot) => {
+                isUpdatingFromFirebase = true;
                 const data = snapshot.val();
-                if (data) {
-                    isUpdatingFromFirebase = true;
-                    stats = data.stats || {};
-                    matchHistory = data.matchHistory || [];
-                    migrateData(stats, matchHistory);
-                    ensureAllTeams();
-                    // Also save to localStorage as cache
-                    localStorage.setItem(STORAGE_KEY, JSON.stringify({ stats, matchHistory }));
-                    updateTables();
-                    renderHistory();
-                    isUpdatingFromFirebase = false;
-                } else {
-                    // Firebase is empty, push current data
-                    if (Object.keys(stats).length > 0) {
-                        db.ref('tournament').set({ stats, matchHistory });
-                    }
-                }
+
+                matchHistory = data
+                    ? Object.entries(data).map(([key, value]) => ({ firebaseKey: key, ...value })).reverse()
+                    : [];
+
+                migrateData(stats, matchHistory);
+                rebuildStatsFromMatches();
+
+                // Save to localStorage as offline cache
+                localStorage.setItem(STORAGE_KEY, JSON.stringify({ stats, matchHistory }));
+
+                updateTables();
+                renderHistory();
+                isUpdatingFromFirebase = false;
             });
+
+            // One-time migration from the old structure: tournament.matchHistory -> matches
+            // This keeps old saved results if the previous version already had data.
+            db.ref('tournament/matchHistory').once('value').then((snapshot) => {
+                const oldHistory = snapshot.val();
+                if (oldHistory && Array.isArray(oldHistory)) {
+                    db.ref('matches').once('value').then((matchesSnapshot) => {
+                        if (!matchesSnapshot.exists()) {
+                            const updates = {};
+                            oldHistory.forEach(match => {
+                                const key = db.ref('matches').push().key;
+                                updates[key] = match;
+                            });
+                            if (Object.keys(updates).length > 0) {
+                                db.ref('matches').update(updates);
+                            }
+                        }
+                    });
+                }
+            }).catch((e) => console.warn('Old data migration skipped:', e));
 
             // Connection status
             db.ref('.info/connected').on('value', (snap) => {
@@ -1466,10 +1484,8 @@
         localStorage.setItem(FIREBASE_CONFIG_KEY, JSON.stringify(config));
 
         if (initFirebase(config)) {
-            // Push current data to Firebase
-            if (Object.keys(stats).length > 0) {
-                db.ref('tournament').set({ stats, matchHistory });
-            }
+            // Push local history to Firebase only if Firebase has no matches yet
+            syncLocalMatchesToFirebaseIfEmpty();
             closeSetupDialog();
             showToast('✅ เชื่อมต่อ Firebase สำเร็จ! ข้อมูลจะซิงค์ข้ามอุปกรณ์แล้ว', 'success');
         } else {
@@ -1512,14 +1528,63 @@
         });
     }
 
-    function saveData() {
-        const data = { stats, matchHistory };
-        // Always save to localStorage as cache
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-        // If Firebase is connected, save there too (the real-time listener will sync to all devices)
-        if (db && !isUpdatingFromFirebase) {
-            db.ref('tournament').set(data);
+    function rebuildStatsFromMatches() {
+        initStats();
+
+        matchHistory.forEach(match => {
+            const { team1, team2, score1, score2 } = match;
+
+            if (!stats[team1] || !stats[team2]) return;
+
+            stats[team1].played += 1;
+            stats[team1].pointsFor += score1;
+            stats[team1].pointsAgainst += score2;
+            if (score1 > score2) stats[team1].win += 1;
+            else if (score1 < score2) stats[team1].loss += 1;
+
+            stats[team2].played += 1;
+            stats[team2].pointsFor += score2;
+            stats[team2].pointsAgainst += score1;
+            if (score2 > score1) stats[team2].win += 1;
+            else if (score2 < score1) stats[team2].loss += 1;
+        });
+    }
+
+    function saveLocalCache() {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ stats, matchHistory }));
+    }
+
+    function saveMatchToFirebase(match) {
+        if (db) {
+            db.ref('matches').push(match);
+        } else {
+            match.firebaseKey = 'local_' + match.id;
+            matchHistory.unshift(match);
+            rebuildStatsFromMatches();
+            saveLocalCache();
+            updateTables();
+            renderHistory();
         }
+    }
+
+    function syncLocalMatchesToFirebaseIfEmpty() {
+        if (!db || matchHistory.length === 0) return;
+
+        db.ref('matches').once('value').then((snapshot) => {
+            if (snapshot.exists()) return;
+
+            const updates = {};
+            matchHistory.slice().reverse().forEach(match => {
+                const cleanMatch = { ...match };
+                delete cleanMatch.firebaseKey;
+                const key = db.ref('matches').push().key;
+                updates[key] = cleanMatch;
+            });
+
+            if (Object.keys(updates).length > 0) {
+                db.ref('matches').update(updates);
+            }
+        }).catch((e) => console.warn('Local sync skipped:', e));
     }
 
     function loadDataFromLocal() {
@@ -1527,11 +1592,10 @@
         if (saved) {
             try {
                 const data = JSON.parse(saved);
-                stats = data.stats || {};
                 matchHistory = data.matchHistory || [];
                 migrateData(stats, matchHistory);
-                ensureAllTeams();
-                saveData();
+                rebuildStatsFromMatches();
+                saveLocalCache();
                 return true;
             } catch (e) {
                 console.error('Error loading saved data:', e);
@@ -1637,19 +1701,6 @@
             return;
         }
 
-        // Update stats
-        stats[team1].played += 1;
-        stats[team1].pointsFor += score1;
-        stats[team1].pointsAgainst += score2;
-        if (score1 > score2) stats[team1].win += 1;
-        else if (score1 < score2) stats[team1].loss += 1;
-
-        stats[team2].played += 1;
-        stats[team2].pointsFor += score2;
-        stats[team2].pointsAgainst += score1;
-        if (score2 > score1) stats[team2].win += 1;
-        else if (score2 < score1) stats[team2].loss += 1;
-
         const match = {
             id: Date.now(),
             group: currentGroup,
@@ -1659,14 +1710,12 @@
             score2,
             timestamp: new Date().toLocaleString('th-TH')
         };
-        matchHistory.unshift(match);
 
         document.getElementById('score1').value = '';
         document.getElementById('score2').value = '';
 
-        saveData();
-        updateTables();
-        renderHistory();
+        // Save as a new match record instead of overwriting the whole tournament data.
+        saveMatchToFirebase(match);
 
         const winner = score1 > score2 ? team1 : (score2 > score1 ? team2 : 'เสมอ');
         const resultText = score1 === score2 
@@ -1720,29 +1769,16 @@
         const match = matchHistory[index];
         if (!match) return;
 
-        const { team1, team2, score1, score2 } = match;
-
-        if (stats[team1]) {
-            stats[team1].played -= 1;
-            stats[team1].pointsFor -= score1;
-            stats[team1].pointsAgainst -= score2;
-            if (score1 > score2) stats[team1].win -= 1;
-            else if (score1 < score2) stats[team1].loss -= 1;
+        if (db && match.firebaseKey && !match.firebaseKey.startsWith('local_')) {
+            db.ref('matches/' + match.firebaseKey).remove();
+        } else {
+            matchHistory.splice(index, 1);
+            rebuildStatsFromMatches();
+            saveLocalCache();
+            updateTables();
+            renderHistory();
         }
 
-        if (stats[team2]) {
-            stats[team2].played -= 1;
-            stats[team2].pointsFor -= score2;
-            stats[team2].pointsAgainst -= score1;
-            if (score2 > score1) stats[team2].win -= 1;
-            else if (score2 < score1) stats[team2].loss -= 1;
-        }
-
-        matchHistory.splice(index, 1);
-        
-        saveData();
-        updateTables();
-        renderHistory();
         showToast('🗑️ ลบรายการแข่งขันแล้ว', 'success');
     }
 
@@ -1767,7 +1803,14 @@
     function resetAll() {
         initStats();
         matchHistory = [];
-        saveData();
+        saveLocalCache();
+
+        if (db) {
+            db.ref('matches').remove();
+            // Remove old full-object data too, so old version will not restore it later.
+            db.ref('tournament').remove().catch(() => {});
+        }
+
         updateTables();
         renderHistory();
         closeDialog();
